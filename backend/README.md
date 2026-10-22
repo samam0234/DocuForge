@@ -19,6 +19,22 @@ bin/rails server -p 3000
 
 확인: `GET http://localhost:3000/up` → 200
 
+> Rails는 `.env`를 자동으로 읽지 않는다. 아래 환경 변수는 셸에서 지정한다.
+> ```powershell
+> $env:DATABASE_USERNAME = "docuforge"; $env:DATABASE_PASSWORD = "docuforge"
+> ```
+
+### 로컬 PostgreSQL 연결 문제
+
+기본 접속 정보는 `postgres` / `postgres`이다. 로컬에 설치한 PostgreSQL의 `postgres` 비밀번호가 다르면
+`db:prepare`가 **`server closed the connection unexpectedly`** 로 실패한다. (실제 원인은 인증 실패)
+
+1. `psql -h localhost -U postgres -d postgres`로 직접 접속해 인증 문제인지 확인한다.
+2. 실제 비밀번호를 `DATABASE_PASSWORD`로 지정하거나, 전용 계정을 만들어 사용한다.
+   `CREATE ROLE docuforge LOGIN CREATEDB PASSWORD 'docuforge';`
+
+자세한 내용: [docs/repeater/261023_postgres_auth_failure.md](../docs/repeater/261023_postgres_auth_failure.md)
+
 ## 환경 변수
 
 루트 `.env.example` 참고.
@@ -49,7 +65,7 @@ bin/rails server -p 3000
 | 400 | 파일 또는 질문 누락 |
 | 404 | 문서 없음 / AI 인덱스 없음 |
 | 413 / 415 / 422 | 크기 초과 / 미지원 형식 / 텍스트 추출 불가 (AI 서버 응답 전달) |
-| 502 | AI 서버 연결 실패 또는 AI 서버 내부 오류 |
+| 502 | AI 서버 연결 실패, 또는 AI 서버/Ollama 오류(503 포함)를 Rails가 502로 변환 |
 | 504 | AI 서버 응답 시간 초과 |
 
 ## 데이터 모델
