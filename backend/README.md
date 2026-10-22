@@ -1,51 +1,95 @@
 # DocuForge Backend (Rails API)
 
-Vue와 FastAPI 사이의 오케스트레이터. 파일 검증, FastAPI 호출, 메타데이터/요약/질문 기록을 PostgreSQL에 저장한다.
+Vue와 FastAPI 사이의 오케스트레이터. 파일 검증, FastAPI 호출, 메타데이터/요약/질문 기록의 PostgreSQL 저장을 담당한다. 프론트엔드가 호출하는 유일한 서버다.
+
+## 사전 준비
+
+- Ruby 3.4, Bundler, Rails 8.1
+- PostgreSQL 16 (`docker compose up -d db` 또는 로컬 설치)
+- AI 서버(`ai-server/`)가 `:8000`에서 실행 중이어야 업로드/질문이 동작한다.
 
 ## 실행
 
 ```bash
+cd backend
 bundle install
-bin/rails db:prepare          # PostgreSQL 필요 (docker compose up -d db)
+bin/rails db:prepare          # DB 생성 + 마이그레이션
 bin/rails server -p 3000
 ```
 
-환경 변수 (루트 `.env.example` 참고)
+확인: `GET http://localhost:3000/up` → 200
 
-| 변수 | 기본값 |
-|------|--------|
-| `DATABASE_HOST` / `DATABASE_PORT` | `localhost` / `5432` |
-| `DATABASE_USERNAME` / `DATABASE_PASSWORD` | `postgres` / `postgres` |
-| `AI_SERVER_URL` | `http://localhost:8000` |
-| `AI_SERVER_TIMEOUT` | `600` (초) |
-| `FRONTEND_ORIGIN` | `http://localhost:5173` |
-| `MAX_UPLOAD_MB` | `10` |
+## 환경 변수
+
+루트 `.env.example` 참고.
+
+| 변수 | 기본값 | 설명 |
+|------|--------|------|
+| `DATABASE_HOST` / `DATABASE_PORT` | `localhost` / `5432` | PostgreSQL 주소 |
+| `DATABASE_USERNAME` / `DATABASE_PASSWORD` | `postgres` / `postgres` | 접속 계정 |
+| `AI_SERVER_URL` | `http://localhost:8000` | FastAPI 주소 |
+| `AI_SERVER_TIMEOUT` | `600` | AI 서버 응답 대기(초). 긴 문서 요약을 고려해 길게 둠 |
+| `FRONTEND_ORIGIN` | `http://localhost:5173` | CORS 허용 출처 (쉼표로 여러 개) |
+| `MAX_UPLOAD_MB` | `10` | 업로드 최대 크기 |
 
 ## API
 
-| Method | Path | 설명 | 주요 에러 |
-|--------|------|------|-----------|
-| GET | `/api/documents` | 최근 문서 20개 | |
-| POST | `/api/documents` | multipart `file` 업로드 → 요약 | 400, 413, 415, 422, 502, 504 |
+| Method | Path | 설명 | 에러 |
+|--------|------|------|------|
+| GET | `/api/documents` | 최근 문서 20개 (`summary_preview` 포함) | |
+| POST | `/api/documents` | multipart `file` 업로드 → AI 요약 → 저장 (201) | 400, 413, 415, 422, 502, 504 |
 | GET | `/api/documents/:id` | 문서 + 요약 | 404 |
-| GET | `/api/documents/:id/questions` | 질문 히스토리 | 404 |
-| POST | `/api/documents/:id/questions` | `{ question }` → 답변 + 근거 | 400, 404, 502, 504 |
+| GET | `/api/documents/:id/questions` | 질문 히스토리 (오래된 순) | 404 |
+| POST | `/api/documents/:id/questions` | `{ question }` → 답변 + 근거 (201) | 400, 404, 502, 504 |
 
 에러 응답 형식: `{ "error": "한국어 메시지" }`
+
+| 코드 | 의미 |
+|------|------|
+| 400 | 파일 또는 질문 누락 |
+| 404 | 문서 없음 / AI 인덱스 없음 |
+| 413 / 415 / 422 | 크기 초과 / 미지원 형식 / 텍스트 추출 불가 (AI 서버 응답 전달) |
+| 502 | AI 서버 연결 실패 또는 AI 서버 내부 오류 |
+| 504 | AI 서버 응답 시간 초과 |
+
+## 데이터 모델
+
+| 테이블 | 주요 컬럼 |
+|--------|-----------|
+| `documents` | filename, content_type, byte_size, original_text, summary, `ai_document_id`(unique) |
+| `qa_histories` | document_id(FK, cascade), question, answer, sources(jsonb) |
+
+`ai_document_id`는 FastAPI 청크 인덱스의 ID이며, 질문 시 이 값으로 `/ask`를 호출한다.
+
+## 처리 흐름
+
+```
+POST /api/documents
+  → 확장자(.txt/.pdf)·크기 검증 → AiClient#summarize (FastAPI /summarize)
+  → Document 저장 → 201
+
+POST /api/documents/:id/questions
+  → AiClient#ask (FastAPI /ask) → QaHistory 저장 → 201
+```
 
 ## 구조
 
 ```
 app/
 ├── controllers/
-│   ├── application_controller.rb   # 공통 에러 처리
+│   ├── application_controller.rb   # 공통 에러 처리(rescue_from)
 │   ├── documents_controller.rb
 │   └── questions_controller.rb
 ├── models/
 │   ├── document.rb
 │   └── qa_history.rb
 └── services/
-    └── ai_client.rb                # FastAPI /summarize, /ask 호출
+    └── ai_client.rb                # FastAPI 호출, 에러 → HTTP 상태 매핑
+config/
+├── routes.rb
+├── database.yml                    # 환경 변수 기반
+└── initializers/cors.rb            # 프론트엔드 출처만 허용
+db/migrate/                         # documents, qa_histories
 ```
 
 ## 테스트
@@ -53,3 +97,7 @@ app/
 ```bash
 bin/rails test        # AiClient는 가짜 객체로 대체, PostgreSQL 필요
 ```
+
+## Docker
+
+`Dockerfile.dev`는 docker-compose 전용 개발 이미지다. 컨테이너 시작 시 `db:prepare`를 실행한다.
