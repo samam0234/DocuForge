@@ -1,0 +1,59 @@
+# DocuForge - 줄바꿈/바이너리 처리 규칙
+# Windows/macOS/Linux 혼용 환경에서 저장소에는 항상 LF로 저장한다.
+
+# 기본: 텍스트 자동 감지 + LF 정규화
+* text=auto eol=lf
+
+# 소스 / 설정 파일 (명시적으로 LF)
+*.py        text eol=lf diff=python
+*.rb        text eol=lf diff=ruby
+*.rake      text eol=lf diff=ruby
+*.erb       text eol=lf
+*.js        text eol=lf
+*.mjs       text eol=lf
+*.ts        text eol=lf
+*.vue       text eol=lf
+*.json      text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.toml      text eol=lf
+*.md        text eol=lf diff=markdown
+*.html      text eol=lf diff=html
+*.css       text eol=lf diff=css
+*.sh        text eol=lf
+*.txt       text eol=lf
+*.env*      text eol=lf
+Gemfile     text eol=lf diff=ruby
+Gemfile.lock text eol=lf -diff
+Dockerfile* text eol=lf
+.gitattributes text eol=lf
+.gitignore  text eol=lf
+
+# Rails bin/ 스크립트는 리눅스 컨테이너에서 실행되므로 반드시 LF
+backend/bin/* text eol=lf
+
+# Windows 전용 스크립트는 CRLF
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+*.ps1       text eol=crlf
+
+# Lock 파일: diff 생략
+package-lock.json -diff
+
+# 바이너리
+*.pdf       binary
+*.docx      binary
+*.doc       binary
+*.xlsx      binary
+*.pptx      binary
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.webp      binary
+*.woff      binary
+*.woff2     binary
+*.ttf       binary
+*.zip       binary
+*.gz        binary
