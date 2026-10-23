@@ -5,7 +5,12 @@ from pathlib import Path
 
 from pypdf import PdfReader
 
-SUPPORTED_EXTENSIONS = {".txt", ".pdf"}
+from app.services.office_parser import OfficeParseError, extract_docx, extract_pptx
+
+SUPPORTED_EXTENSIONS = {".txt", ".md", ".markdown", ".pdf", ".docx", ".pptx"}
+SUPPORTED_LABEL = "TXT, MD, PDF, DOCX, PPTX"
+# 구형 Office 형식은 별도 변환이 필요해 지원하지 않는다
+LEGACY_EXTENSIONS = {".doc": ".docx", ".ppt": ".pptx"}
 
 
 class UnsupportedFormatError(ValueError):
@@ -18,13 +23,22 @@ class EmptyDocumentError(ValueError):
 
 def extract_text(filename: str, data: bytes) -> str:
     ext = Path(filename).suffix.lower()
+    if ext in LEGACY_EXTENSIONS:
+        raise UnsupportedFormatError(
+            f"구형 {ext} 형식은 지원하지 않습니다. {LEGACY_EXTENSIONS[ext]}로 저장한 뒤 업로드해 주세요."
+        )
     if ext not in SUPPORTED_EXTENSIONS:
-        raise UnsupportedFormatError(f"지원하지 않는 형식입니다: {ext or '(확장자 없음)'} (TXT, PDF만 가능)")
+        raise UnsupportedFormatError(
+            f"지원하지 않는 형식입니다: {ext or '(확장자 없음)'} ({SUPPORTED_LABEL}만 가능)"
+        )
 
-    text = _extract_pdf(data) if ext == ".pdf" else _decode_text(data)
+    try:
+        text = _EXTRACTORS.get(ext, _decode_text)(data)
+    except OfficeParseError as exc:
+        raise EmptyDocumentError(str(exc)) from exc
     text = _normalize(text)
     if not text:
-        raise EmptyDocumentError("문서에서 텍스트를 추출할 수 없습니다. (스캔 PDF는 지원하지 않습니다)")
+        raise EmptyDocumentError("문서에서 텍스트를 추출할 수 없습니다. (스캔·이미지 전용 문서는 지원하지 않습니다)")
     return text
 
 
@@ -87,3 +101,6 @@ def _normalize(text: str) -> str:
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
+
+
+_EXTRACTORS = {".pdf": _extract_pdf, ".docx": extract_docx, ".pptx": extract_pptx}
