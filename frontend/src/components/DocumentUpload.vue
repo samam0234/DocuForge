@@ -4,7 +4,12 @@ import { uploadDocument, errorMessage } from '../api/document'
 
 const emit = defineEmits(['uploaded'])
 
-const ALLOWED = ['.txt', '.pdf']
+// Rails(Document::ALLOWED_EXTENSIONS), FastAPI(document_parser.py)와 같은 형식이어야 한다.
+const ALLOWED = ['.txt', '.md', '.markdown', '.pdf', '.docx', '.pptx']
+const ALLOWED_LABEL = 'TXT, MD, PDF, DOCX, PPTX'
+const ACCEPT = ALLOWED.join(',')
+// 구형 Office 형식은 지원하지 않고 변환을 안내한다.
+const LEGACY = { '.doc': '.docx', '.ppt': '.pptx' }
 const MAX_MB = 10
 
 const dragging = ref(false)
@@ -14,8 +19,10 @@ const error = ref('')
 const input = ref(null)
 
 function validate(file) {
-  const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase()
-  if (!ALLOWED.includes(ext)) return 'TXT, PDF 파일만 업로드할 수 있습니다.'
+  const dot = file.name.lastIndexOf('.')
+  const ext = dot < 0 ? '' : file.name.slice(dot).toLowerCase()
+  if (LEGACY[ext]) return `구형 ${ext} 형식은 지원하지 않습니다. ${LEGACY[ext]}로 저장한 뒤 업로드해 주세요.`
+  if (!ALLOWED.includes(ext)) return `${ALLOWED_LABEL} 파일만 업로드할 수 있습니다.`
   if (file.size > MAX_MB * 1024 * 1024) return `파일이 너무 큽니다. (최대 ${MAX_MB}MB)`
   return ''
 }
@@ -56,12 +63,12 @@ function onDrop(e) {
     @drop.prevent="onDrop"
     @click="phase === 'idle' && input.click()"
   >
-    <input ref="input" type="file" accept=".txt,.pdf" hidden @change="handle($event.target.files[0])" />
+    <input ref="input" type="file" :accept="ACCEPT" hidden @change="handle($event.target.files[0])" />
 
     <template v-if="phase === 'idle'">
       <div class="upload-icon">⇪</div>
       <p class="upload-title">파일을 끌어다 놓거나 클릭해서 선택하세요</p>
-      <p class="muted">TXT, PDF · 최대 {{ MAX_MB }}MB</p>
+      <p class="muted">{{ ALLOWED_LABEL }} · 최대 {{ MAX_MB }}MB</p>
     </template>
 
     <template v-else>
