@@ -19,9 +19,12 @@ bin/rails server -p 3000
 
 확인: `GET http://localhost:3000/up` → 200
 
-> Rails는 `.env`를 자동으로 읽지 않는다. 아래 환경 변수는 셸에서 지정한다.
-> ```powershell
-> $env:DATABASE_USERNAME = "docuforge"; $env:DATABASE_PASSWORD = "docuforge"
+> `dotenv-rails`가 개발/테스트 환경에서 `.env`를 자동으로 읽는다. 읽는 순서(먼저 읽은 값이 우선):
+> 셸 환경 변수 → `backend/.env`(앱 전용) → 루트 `.env`(전체 서비스 공유)
+> 루트 `.env.example`을 복사해 `.env`를 만들고 DB 계정을 채운다.
+> ```
+> DATABASE_USERNAME=docuforge
+> DATABASE_PASSWORD=docuforge
 > ```
 
 ### 로컬 PostgreSQL 연결 문제
@@ -30,7 +33,7 @@ bin/rails server -p 3000
 `db:prepare`가 **`server closed the connection unexpectedly`** 로 실패한다. (실제 원인은 인증 실패)
 
 1. `psql -h localhost -U postgres -d postgres`로 직접 접속해 인증 문제인지 확인한다.
-2. 실제 비밀번호를 `DATABASE_PASSWORD`로 지정하거나, 전용 계정을 만들어 사용한다.
+2. 실제 비밀번호를 `.env`의 `DATABASE_PASSWORD`로 지정하거나, 전용 계정을 만들어 사용한다.
    `CREATE ROLE docuforge LOGIN CREATEDB PASSWORD 'docuforge';`
 
 자세한 내용: [docs/repeater/261023_postgres_auth_failure.md](../docs/repeater/261023_postgres_auth_failure.md)
@@ -111,7 +114,7 @@ db/migrate/                         # documents, qa_histories
 ## 테스트
 
 ```bash
-bin/rails test        # AiClient는 가짜 객체로 대체, PostgreSQL 필요
+bin/rails test        # AiClient는 가짜 객체로 대체, PostgreSQL 필요 (.env의 DB 계정 사용)
 ```
 
 ## Docker
