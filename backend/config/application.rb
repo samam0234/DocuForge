@@ -18,6 +18,16 @@ require "rails/test_unit/railtie"
 # you've limited to :test, :development, or :production.
 Bundler.require(*Rails.groups)
 
+# dotenv-rails는 Application 클래스가 정의될 때 로드하므로 그 전에 파일 목록을 지정한다.
+# backend/.env(앱 전용)를 먼저, 루트 .env(전체 서비스 공유)를 그다음 읽는다.
+# 먼저 읽은 값이 우선하며, 셸 환경 변수가 있으면 그 값이 가장 우선한다.
+if defined?(Dotenv::Rails)
+  Dotenv::Rails.files = [
+    File.expand_path("../.env", __dir__),
+    File.expand_path("../../.env", __dir__)
+  ]
+end
+
 module Backend
   class Application < Rails::Application
     # Initialize configuration defaults for originally generated Rails version.
