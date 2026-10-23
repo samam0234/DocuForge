@@ -23,3 +23,21 @@
 - 같은 이유로 터미널 출력의 한글이 깨져 보일 수 있으나 응답 자체는 정상이다.
 
 관련 장애 기록: [repeater/261023_postgres_auth_failure.md](../repeater/261023_postgres_auth_failure.md)
+
+---
+
+## 추가 이슈: "서버에 연결할 수 없다" 3종 (같은 날 후속)
+
+| 순서 | 증상 | 원인 | 조치 |
+|------|------|------|------|
+| 7 | 업로드 시 "AI 서버에 연결할 수 없습니다" (Rails 로그 502, `ECONNREFUSED`) | backend만 실행하고 AI 서버(:8000)를 띄우지 않음 | `uvicorn app.main:app --port 8000` 실행 |
+| 8 | 프론트엔드가 "서버에 연결할 수 없습니다. Rails 서버(:3000)…" | Rails 정상(`/up` 200)이었고 브라우저 요청도 Rails에 도달. 서버 재시작 시점의 오류 화면이 남았거나 `127.0.0.1:5173` 접속(CORS 차단) 가능성 | 새로고침, `localhost:5173`으로 접속. 재현 불가라 사용자에게 문구·동작을 확인 요청 |
+| 9 | `bin/rails server -p 3000`이 즉시 종료 (`A server is already running (pid: …)`) | 죽은 서버의 `tmp/pids/server.pid` 잔존 | PID 파일 삭제 후 정상 기동 |
+
+### 판단 메모
+
+- 같은 문구라도 계층이 다르다. 화면 문구(프론트) / Rails 502 메시지 / Puma 기동 실패는 각각 원인이 달랐다. **로그를 먼저 본다**: `backend/log/development.log`에 요청이 도달했는지로 브라우저→Rails 구간 문제인지 구분됐다.
+- 사용자가 직접 실행할 때와 에이전트 세션에서 실행할 때의 환경(환경 변수, 점유 포트, PID 파일)이 다르다. 에이전트가 띄운 서버가 남기는 PID 파일이 사용자의 실행을 막을 수 있으므로, 확인용 서버는 확인 후 종료하고 PID 파일까지 정리한다.
+- `main`에는 아직 `dotenv-rails`가 없어(`feature/rails-api`에만 있음) 직접 실행 시 `.env`가 자동 로드되지 않는다. 병합 전에는 `set -a; . ./.env; set +a`로 셸에 로드한다.
+
+관련 장애 기록: [repeater/261023_rails_stale_server_pid.md](../repeater/261023_rails_stale_server_pid.md)
