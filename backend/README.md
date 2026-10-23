@@ -38,6 +38,17 @@ bin/rails server -p 3000
 
 자세한 내용: [docs/repeater/261023_postgres_auth_failure.md](../docs/repeater/261023_postgres_auth_failure.md)
 
+### 서버가 시작되지 않을 때
+
+| 증상 | 원인 / 해결 |
+|------|-------------|
+| `A server is already running (pid: …)` 후 종료 | 강제 종료된 서버의 PID 파일이 남음. `tasklist`/`netstat -ano`로 프로세스가 없음을 확인하고 `tmp/pids/server.pid` 삭제 후 재실행 |
+| 서버는 뜨는데 업로드/질문이 502 | AI 서버(`:8000`) 미실행. `curl localhost:8000/health` 확인 |
+| 프론트엔드에서 "서버에 연결할 수 없습니다" | `http://localhost:5173`으로 접속했는지 확인 (`127.0.0.1`은 CORS 차단, `FRONTEND_ORIGIN`에 추가 가능) |
+| `bin/rails sever` | 오타. `bin/rails server`(또는 `s`) |
+
+서버는 `Ctrl+C`로 종료한다. 자세한 내용: [docs/repeater/261023_rails_stale_server_pid.md](../docs/repeater/261023_rails_stale_server_pid.md)
+
 ## 환경 변수
 
 루트 `.env.example` 참고.
