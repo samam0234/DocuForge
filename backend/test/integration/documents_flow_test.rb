@@ -4,7 +4,7 @@ require "test_helper"
 class DocumentsFlowTest < ActionDispatch::IntegrationTest
   class FakeAiClient
     def summarize(_file)
-      { "document_id" => "a" * 32, "summary" => "요약 결과", "text" => "원문 텍스트" }
+      { "document_id" => SecureRandom.hex(16), "summary" => "요약 결과", "text" => "원문 텍스트" }
     end
 
     def ask(document_id, question)
@@ -42,9 +42,27 @@ class DocumentsFlowTest < ActionDispatch::IntegrationTest
     assert_equal 0, response.parsed_body.first["sources"].first["chunk_index"]
   end
 
-  test "지원하지 않는 형식은 415" do
+  test "지원하지 않는 형식은 415이고 지원 형식을 안내한다" do
     post "/api/documents", params: { file: fixture_file_upload("sample.png", "image/png") }
     assert_response :unsupported_media_type
+    assert_includes response.parsed_body["error"], "TXT, MD, PDF, DOCX, PPTX"
+  end
+
+  test "MD, DOCX, PPTX, PDF 업로드를 받아들인다" do
+    %w[note.md note.markdown report.DOCX deck.pptx doc.pdf].each do |name|
+      file = Rack::Test::UploadedFile.new(StringIO.new("x"), "application/octet-stream", original_filename: name)
+      post "/api/documents", params: { file: file }
+      assert_response :created, "#{name} 업로드 실패"
+    end
+  end
+
+  test "구형 doc, ppt는 변환 안내와 함께 415" do
+    { "old.doc" => ".docx", "old.PPT" => ".pptx" }.each do |name, target|
+      file = Rack::Test::UploadedFile.new(StringIO.new("x"), "application/msword", original_filename: name)
+      post "/api/documents", params: { file: file }
+      assert_response :unsupported_media_type
+      assert_includes response.parsed_body["error"], "#{target}로 저장"
+    end
   end
 
   test "파일 없이 요청하면 400" do
