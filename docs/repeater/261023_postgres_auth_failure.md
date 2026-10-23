@@ -37,17 +37,20 @@ server closed the connection unexpectedly
    ```
 4. `pg_hba.conf`를 백업본으로 즉시 원복 후 reload, `diff`로 동일 확인
 5. 확인: `postgres/postgres`는 여전히 거부, `docuforge/docuforge`는 접속 성공
-6. Rails 실행 시 환경 변수 지정
+6. Rails가 계정 정보를 읽도록 설정
+   - 처음에는 터미널에서 직접 지정했다.
 
-   ```powershell
-   $env:DATABASE_USERNAME = "docuforge"; $env:DATABASE_PASSWORD = "docuforge"
-   bin/rails db:prepare
-   ```
+     ```powershell
+     $env:DATABASE_USERNAME = "docuforge"; $env:DATABASE_PASSWORD = "docuforge"
+     ```
+   - 이 방식은 **터미널마다 다시 지정해야 해서**, 사용자가 직접 `bin/rails db:prepare`를 실행하면 기본값(`postgres/postgres`)으로 접속해 다시 거부되었다.
+   - 최종: `dotenv-rails`를 추가해 루트 `.env`의 `DATABASE_USERNAME/PASSWORD`를 자동 로드한다. (`.env`는 gitignore 대상)
 
 결과: 마이그레이션 2건 적용, `bin/rails test` 5 runs 0 failures.
 
 ## 재발 방지 / 참고
 
 - 로컬에 이미 PostgreSQL이 있는 경우 `postgres` 계정 비밀번호가 기본값과 다를 수 있다. 연결 오류 시 먼저 `psql -h localhost -U <계정>`으로 **직접 접속**해 인증 문제인지 구분한다.
+- `.env`에 적은 계정이 실제로 존재하는지 `psql -h localhost -U <계정>`으로 먼저 확인한다. (이번에도 `.env`의 `admin` 계정이 DB에 없어 인증이 실패했다.)
 - 개발용 `docuforge/docuforge` 계정은 로컬 전용이다. 배포 환경에서는 사용하지 않는다.
 - `pg_hba.conf` 백업 파일은 확인 후 사용자 판단으로 삭제한다.
