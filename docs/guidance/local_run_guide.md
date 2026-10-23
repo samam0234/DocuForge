@@ -84,6 +84,8 @@ bin/rails server -p 3000
 > 루트 `.env.example`을 복사해 `.env`를 만들고 `DATABASE_USERNAME`, `DATABASE_PASSWORD` 등을 채운다.
 > (`.env`는 `.gitignore` 대상이라 커밋되지 않는다.)
 
+서버는 `Ctrl+C`로 종료한다. 강제 종료하면 `tmp/pids/server.pid`가 남아 다음 실행이 막힐 수 있다. (7장 참고)
+
 테스트: `bin/rails test`
 
 ## 4. Frontend (Vue, :5173)
@@ -122,6 +124,9 @@ docker compose up --build
 | 증상 | 원인 / 확인 |
 |------|-------------|
 | `db:prepare`가 `server closed the connection unexpectedly` | PostgreSQL 계정 비밀번호 불일치. `.env`의 `DATABASE_USERNAME/PASSWORD`를 `psql`로 먼저 검증 → 1.B 참고 |
-| 업로드/질문 시 502 ("AI 서버에 연결할 수 없습니다") | AI 서버(:8000) 미실행 |
+| 업로드/질문 시 502 ("AI 서버에 연결할 수 없습니다") | AI 서버(:8000) 미실행. backend만 실행하면 업로드·질문은 항상 이 오류 → `curl localhost:8000/health` 확인 |
 | 업로드/질문 시 502 ("AI 모델 호출 실패") | AI 서버는 503을 내고 Rails가 502로 전달. Ollama 미실행 또는 `gemma4:12b` 미설치 → `/health`의 `ollama` 값 확인 |
+| `bin/rails server`가 `A server is already running (pid: …)`로 종료 | 죽은 서버의 PID 파일 잔존. `tasklist`/`netstat`으로 프로세스가 없음을 확인 후 `backend/tmp/pids/server.pid` 삭제 → [repeater/261023_rails_stale_server_pid.md](../repeater/261023_rails_stale_server_pid.md) |
+| 프론트엔드가 "서버에 연결할 수 없습니다" | ① `curl localhost:3000/up`으로 Rails 확인 ② 주소를 `http://localhost:5173`으로 접속(`127.0.0.1`은 CORS 차단, 필요하면 `FRONTEND_ORIGIN`에 추가) ③ 새로고침 |
+| 서버 명령이 실행되지 않고 `3000`만 출력 | 명령어 오타 (`sever` → `server`) |
 | 업로드가 오래 걸림 | 긴 문서는 map-reduce 요약으로 1분 이상 소요 가능 (Rails 대기 600초) |
