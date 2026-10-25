@@ -31,12 +31,12 @@ Rails 기본 접속 정보는 `postgres` / `postgres`이다. 로컬 `postgres` �
 `bin/rails db:prepare`가 `server closed the connection unexpectedly`로 실패한다.
 (원인과 해결: [repeater/261023_postgres_auth_failure.md](../repeater/261023_postgres_auth_failure.md))
 
-선택지:
+선택지 (어느 쪽이든 값은 루트 `.env`에 적는다):
 
-1. 기존 비밀번호를 환경 변수로 지정한다.
+1. 기존 비밀번호를 사용한다.
 
-   ```powershell
-   $env:DATABASE_PASSWORD = "실제비밀번호"
+   ```
+   DATABASE_PASSWORD=실제비밀번호
    ```
 
 2. 프로젝트 전용 계정을 만든다. (기존 계정에 영향 없음)
@@ -45,8 +45,9 @@ Rails 기본 접속 정보는 `postgres` / `postgres`이다. 로컬 `postgres` �
    CREATE ROLE docuforge LOGIN CREATEDB PASSWORD 'docuforge';
    ```
 
-   ```powershell
-   $env:DATABASE_USERNAME = "docuforge"; $env:DATABASE_PASSWORD = "docuforge"
+   ```
+   DATABASE_USERNAME=docuforge
+   DATABASE_PASSWORD=docuforge
    ```
 
 접속 여부는 Rails보다 `psql`로 먼저 확인하면 원인 구분이 쉽다.
@@ -78,8 +79,12 @@ bin/rails server -p 3000
 
 확인: `GET http://localhost:3000/up` → 200
 
-> Rails는 `.env`를 자동으로 읽지 않는다. DB 계정·AI 서버 주소 등은 셸 환경 변수로 지정한다.
-> (`DATABASE_USERNAME`, `DATABASE_PASSWORD`, `AI_SERVER_URL` 등 — 루트 `.env.example` 참고)
+> Rails는 `dotenv-rails`로 `.env`를 자동 로드한다. 읽는 순서(먼저 읽은 값이 우선):
+> 셸 환경 변수 → `backend/.env` → 루트 `.env`
+> 루트 `.env.example`을 복사해 `.env`를 만들고 `DATABASE_USERNAME`, `DATABASE_PASSWORD` 등을 채운다.
+> (`.env`는 `.gitignore` 대상이라 커밋되지 않는다.)
+
+서버는 `Ctrl+C`로 종료한다. 강제 종료하면 `tmp/pids/server.pid`가 남아 다음 실행이 막힐 수 있다. (7장 참고)
 
 테스트: `bin/rails test`
 
@@ -118,7 +123,10 @@ docker compose up --build
 
 | 증상 | 원인 / 확인 |
 |------|-------------|
-| `db:prepare`가 `server closed the connection unexpectedly` | PostgreSQL 계정 비밀번호 불일치 → 1.B 참고 |
-| 업로드/질문 시 502 ("AI 서버에 연결할 수 없습니다") | AI 서버(:8000) 미실행 |
+| `db:prepare`가 `server closed the connection unexpectedly` | PostgreSQL 계정 비밀번호 불일치. `.env`의 `DATABASE_USERNAME/PASSWORD`를 `psql`로 먼저 검증 → 1.B 참고 |
+| 업로드/질문 시 502 ("AI 서버에 연결할 수 없습니다") | AI 서버(:8000) 미실행. backend만 실행하면 업로드·질문은 항상 이 오류 → `curl localhost:8000/health` 확인 |
 | 업로드/질문 시 502 ("AI 모델 호출 실패") | AI 서버는 503을 내고 Rails가 502로 전달. Ollama 미실행 또는 `gemma4:12b` 미설치 → `/health`의 `ollama` 값 확인 |
+| `bin/rails server`가 `A server is already running (pid: …)`로 종료 | 죽은 서버의 PID 파일 잔존. `tasklist`/`netstat`으로 프로세스가 없음을 확인 후 `backend/tmp/pids/server.pid` 삭제 → [repeater/261023_rails_stale_server_pid.md](../repeater/261023_rails_stale_server_pid.md) |
+| 프론트엔드가 "서버에 연결할 수 없습니다" | ① `curl localhost:3000/up`으로 Rails 확인 ② 주소를 `http://localhost:5173`으로 접속(`127.0.0.1`은 CORS 차단, 필요하면 `FRONTEND_ORIGIN`에 추가) ③ 새로고침 |
+| 서버 명령이 실행되지 않고 `3000`만 출력 | 명령어 오타 (`sever` → `server`) |
 | 업로드가 오래 걸림 | 긴 문서는 map-reduce 요약으로 1분 이상 소요 가능 (Rails 대기 600초) |
