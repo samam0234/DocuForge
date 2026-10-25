@@ -78,9 +78,17 @@ bin/rails server -p 3000
 |------|------|
 | 400 | 파일 또는 질문 누락 |
 | 404 | 문서 없음 / AI 인덱스 없음 |
-| 413 / 415 / 422 | 크기 초과 / 미지원 형식 / 텍스트 추출 불가 (AI 서버 응답 전달) |
+| 413 / 415 / 422 | 크기 초과 / 미지원 형식(구형 `.doc`/`.ppt`는 변환 안내) / 텍스트 추출 불가·손상·암호 문서 (AI 서버 응답 전달) |
 | 502 | AI 서버 연결 실패, 또는 AI 서버/Ollama 오류(503 포함)를 Rails가 502로 변환 |
 | 504 | AI 서버 응답 시간 초과 |
+
+## 지원 파일 형식
+
+`.txt`, `.md`(`.markdown`), `.pdf`, `.docx`, `.pptx` — `Document::ALLOWED_EXTENSIONS`
+
+- Rails는 확장자와 크기(`MAX_UPLOAD_MB`)만 검증하고, 텍스트 추출은 FastAPI가 담당한다.
+- 구형 `.doc`, `.ppt`는 415와 함께 "`.docx`/`.pptx`로 저장한 뒤 업로드" 안내를 반환한다.
+- 형식을 추가할 때는 FastAPI(`document_parser.py`), 이 모델의 `ALLOWED_EXTENSIONS`/`SUPPORTED_LABEL`, Vue(`DocumentUpload.vue`)를 함께 바꾼다.
 
 ## 데이터 모델
 
@@ -95,7 +103,7 @@ bin/rails server -p 3000
 
 ```
 POST /api/documents
-  → 확장자(.txt/.pdf)·크기 검증 → AiClient#summarize (FastAPI /summarize)
+  → 확장자(Document::ALLOWED_EXTENSIONS)·크기 검증 → AiClient#summarize (FastAPI /summarize)
   → Document 저장 → 201
 
 POST /api/documents/:id/questions
