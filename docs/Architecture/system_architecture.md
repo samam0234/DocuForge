@@ -28,7 +28,7 @@
 
 1. Vue → `POST /api/documents` (multipart `file`)
 2. Rails: 확장자/크기 검증 → FastAPI `POST /summarize` (multipart 전달)
-3. FastAPI: 텍스트 추출(TXT/PDF) → 청크 분할 → 인덱스 저장 → 청크별 요약 → 최종 요약 (gemma4:12b)
+3. FastAPI: 형식별 텍스트 추출(TXT/MD/PDF/DOCX/PPTX) → 청크 분할 → 인덱스 저장 → 청크별 요약 → 최종 요약 (gemma4:12b)
 4. FastAPI → Rails: `{ document_id, summary, text, chunk_count }`
 5. Rails: `documents` 행 저장 (`ai_document_id` 로 FastAPI 인덱스와 연결) → Vue 응답
 
@@ -39,6 +39,20 @@
 3. FastAPI: 관련 청크 top-k 검색 → 컨텍스트 + 질문으로 gemma4:12b 호출
 4. FastAPI → Rails: `{ answer, sources: [{ chunk_index, text, score }] }`
 5. Rails: `qa_histories` 저장 → Vue 응답
+
+### 2.3 지원 파일 형식과 계층별 책임
+
+| 계층 | 위치 | 역할 |
+|------|------|------|
+| Vue | `DocumentUpload.vue`의 `ALLOWED` | 선택·드롭 시 1차 검증, 안내 문구 |
+| Rails | `Document::ALLOWED_EXTENSIONS` | 확장자·크기 검증, 구형 형식 안내 (텍스트 추출은 하지 않음) |
+| FastAPI | `document_parser.SUPPORTED_EXTENSIONS`, `_EXTRACTORS` | 실제 텍스트 추출, 손상·암호 문서 거절 |
+
+- 허용 확장자 목록이 세 곳에 있어 **형식을 추가할 때 세 곳을 함께 바꾼다.** (사용자 입력은 서버 쪽 검증이 최종 기준)
+- 추출기: TXT/MD는 디코딩, PDF는 pypdf, DOCX는 python-docx, PPTX는 python-pptx.
+- DOCX는 본문 순서대로 문단과 표를 추출하고 제목 스타일은 마크다운 `#`로 표시한다. PPTX는 `[슬라이드 N]` 단위로 텍스트·표·그룹 도형·`[발표자 노트]`를 추출한다.
+- 안전장치: Office 문서는 압축 해제 크기 100MB 초과 시 거절(zip bomb 방어), 손상·암호 문서는 422.
+- 이미지·차트·도형 모양은 추출하지 않는다.
 
 ## 3. 데이터 모델
 

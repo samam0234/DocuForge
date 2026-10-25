@@ -1,6 +1,6 @@
 # DocuForge
 
-**AI 기반 문서 요약 및 질의응답 플랫폼** — TXT/PDF를 업로드하면 로컬 LLM(Ollama `gemma4:12b`)이 요약하고, 문서 내용에 기반해 질문에 답한다.
+**AI 기반 문서 요약 및 질의응답 플랫폼** — TXT, MD, PDF, DOCX, PPTX 문서를 업로드하면 로컬 LLM(Ollama `gemma4:12b`)이 요약하고, 문서 내용에 기반해 질문에 답한다.
 
 ```
 Vue 3 (:5173) ──▶ Rails 8 API (:3000) ──▶ FastAPI (:8000) ──▶ Ollama gemma4:12b (:11434)
@@ -17,6 +17,17 @@ Vue 3 (:5173) ──▶ Rails 8 API (:3000) ──▶ FastAPI (:8000) ──▶ 
 | [`backend/`](backend/) | Rails API — 오케스트레이션, 메타데이터/QA 저장 |
 | [`ai-server/`](ai-server/) | FastAPI — 텍스트 추출, 요약, RAG 답변 |
 | [`docs/`](docs/) | 기획·아키텍처·커밋 기록·가이드 |
+
+## 지원 파일 형식
+
+| 형식 | 확장자 | 비고 |
+|------|--------|------|
+| 텍스트 / 마크다운 | `.txt`, `.md`, `.markdown` | UTF-8, CP949, UTF-16 자동 판별 |
+| PDF | `.pdf` | 텍스트가 있는 PDF만 (스캔본 불가) |
+| Word | `.docx` | 본문 순서대로 문단·표·제목 추출 |
+| PowerPoint | `.pptx` | 슬라이드별 텍스트·표·발표자 노트 추출 |
+
+구형 `.doc`, `.ppt`, 암호가 걸린 문서, 이미지는 지원하지 않는다. 업로드 최대 크기는 10MB.
 
 ## 빠른 시작
 
