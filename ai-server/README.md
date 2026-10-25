@@ -44,7 +44,7 @@ uvicorn app.main:app --reload --port 8000
 | Method | Path | 설명 |
 |--------|------|------|
 | GET | `/health` | 상태, 모델명, Ollama 연결 여부 |
-| POST | `/summarize` | multipart `file`(TXT/PDF) → `{document_id, summary, text, char_count, chunk_count, model}` |
+| POST | `/summarize` | multipart `file`(TXT, MD, PDF, DOCX, PPTX) → `{document_id, summary, text, char_count, chunk_count, model}` |
 | POST | `/ask` | `{document_id, question}` → `{answer, sources[], model}` |
 
 ```bash
@@ -59,14 +59,28 @@ curl -X POST http://localhost:8000/ask -H "Content-Type: application/json" \
 |------|------|
 | 404 | `/ask`에 존재하지 않는 `document_id` |
 | 413 | 파일 크기 초과 |
-| 415 | TXT/PDF가 아닌 형식 |
-| 422 | 추출할 텍스트가 없음 (스캔 PDF, 빈 파일, 손상된 PDF) |
+| 415 | 지원하지 않는 형식 (구형 `.doc`/`.ppt`는 `.docx`/`.pptx`로 저장 안내) |
+| 422 | 추출할 텍스트가 없음 (스캔 PDF, 빈 파일) 또는 손상된/암호 문서, 압축 해제 크기 100MB 초과 |
 | 503 | Ollama 호출 실패 (미실행, 모델 없음, 타임아웃) |
+
+## 지원 형식
+
+| 확장자 | 추출 방식 |
+|--------|-----------|
+| `.txt`, `.md`, `.markdown` | 텍스트 디코딩 (UTF-8 → CP949 → UTF-16 순으로 시도). 마크다운은 원문 그대로 사용 |
+| `.pdf` | pypdf로 페이지별 텍스트 (스캔본/이미지 PDF는 불가) |
+| `.docx` | python-docx. 본문 순서대로 문단과 표를 추출하고, 제목 스타일은 `#`로 표시. 표는 `셀 | 셀` 행으로 변환, 병합 셀은 한 번만 |
+| `.pptx` | python-pptx. `[슬라이드 N]` 단위로 텍스트·표·그룹 도형 안의 텍스트와 `[발표자 노트]`를 추출. 텍스트 없는 슬라이드는 생략 |
+
+- 구형 `.doc`, `.ppt`는 지원하지 않는다. (`.docx`, `.pptx`로 저장 후 업로드)
+- 암호가 걸린 Office 문서와 손상 파일은 422로 응답한다.
+- 이미지, 차트, 도형 모양은 추출하지 않는다. (텍스트만)
+- 형식을 추가하려면 `services/document_parser.py`의 `SUPPORTED_EXTENSIONS`와 `_EXTRACTORS`에 등록한다. Rails(`Document::ALLOWED_EXTENSIONS`)와 Vue(`DocumentUpload.vue`)의 허용 목록도 함께 바꿔야 한다.
 
 ## 처리 흐름
 
 ```
-/summarize: 파일 → 텍스트 추출 → 청크 분할(1000자, 겹침 150) → [임베딩] → 인덱스 저장
+/summarize: 파일 → 형식별 텍스트 추출 → 청크 분할(1000자, 겹침 150) → [임베딩] → 인덱스 저장
                                  └→ 요약 (gemma4:12b)
 /ask:       질문 → 인덱스 검색(top 4) → 발췌 + 질문 → gemma4:12b → 답변 + 근거 청크
 ```
@@ -85,7 +99,8 @@ app/
 ├── routers/                # summarize.py, ask.py
 ├── services/
 │   ├── ollama_client.py    # /api/chat(think=false), /api/embed 호출
-│   ├── document_parser.py  # TXT/PDF 추출, 청크 분할
+│   ├── document_parser.py  # 형식 분기(TXT/MD/PDF/DOCX/PPTX), 청크 분할
+│   ├── office_parser.py    # DOCX/PPTX 추출
 │   ├── summarizer.py       # map-reduce 요약
 │   └── rag_engine.py       # 인덱스 저장, 검색, 답변 생성
 └── models/schemas.py

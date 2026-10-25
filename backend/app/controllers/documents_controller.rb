@@ -14,7 +14,7 @@ class DocumentsController < ApplicationController
   def create
     file = params.require(:file)
     return render_error("파일 형식이 올바르지 않습니다.", :bad_request) unless file.respond_to?(:original_filename)
-    return render_error("TXT, PDF 파일만 업로드할 수 있습니다.", :unsupported_media_type) unless Document.allowed_extension?(file.original_filename)
+    return render_error(Document.unsupported_message(file.original_filename), :unsupported_media_type) unless Document.allowed_extension?(file.original_filename)
     return render_error("파일이 너무 큽니다. (최대 #{Document::MAX_BYTES / 1.megabyte}MB)", :content_too_large) if file.size > Document::MAX_BYTES
 
     result = ai_client.summarize(file)
